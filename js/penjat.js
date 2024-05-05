@@ -90,10 +90,11 @@ document.addEventListener("DOMContentLoaded", function () {
                         console.log("Paraula incorrecta. El jugador " + playData.player + " perd una vida.");
                         // Actualitzar vides i mostrar a la interfície gràfica
                         lives--;
+                        updateMonsterImage();
                         livesText.innerHTML = (lives + "<br> LIVES <br>LEFT");
-
                         if (lives === 0) {
                             alert("Has perdut la partida!");
+                            document.body.removeEventListener("keydown", pressKey);
                         }
                     }
                 } else {
@@ -127,6 +128,16 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         };
         xhrUpdateGame.send(JSON.stringify({ "action": "infoGame", "gameName": roomCode }));
+    }
+
+    function updateMonsterImage() {
+        var imgMonstre = document.getElementById("monster");
+
+        // Construir la ruta de la imagen en función del número de vidas
+        var imagePath = "img/monster" + lives + ".png";
+
+        // Actualizar la fuente de la imagen
+        imgMonstre.src = imagePath;
     }
 
 });
