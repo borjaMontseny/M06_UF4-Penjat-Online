@@ -57,6 +57,9 @@ document.addEventListener("DOMContentLoaded", function () {
     document.body.addEventListener("keydown", pressKey);
     newGameButton.addEventListener("click", restartGame);
 
+    // Actualitzar l'estat del joc cada 3 segons
+    setInterval(actualizarEstadoJuegoPeriodicamente, 3000);
+
     function pressKey(event) {
         var pressedKey = event.key.toUpperCase();
 
@@ -138,6 +141,20 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Actualizar la fuente de la imagen
         imgMonstre.src = imagePath;
+    }
+
+    // Función para realizar la solicitud AJAX y actualizar el estado del juego
+    function actualizarEstadoJuegoPeriodicamente() {
+        var xhrUpdateGame = new XMLHttpRequest();
+        xhrUpdateGame.open("POST", "https://penjat.codifi.cat", true);
+        xhrUpdateGame.setRequestHeader("Content-Type", "application/json");
+        xhrUpdateGame.onreadystatechange = function () {
+            if (xhrUpdateGame.readyState === 4 && xhrUpdateGame.status === 200) {
+                var jsonResponse = JSON.parse(xhrUpdateGame.responseText);
+                updateGameState(jsonResponse);
+            }
+        };
+        xhrUpdateGame.send(JSON.stringify({ "action": "infoGame", "gameName": roomCode }));
     }
 
 });
