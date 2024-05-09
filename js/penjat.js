@@ -11,6 +11,10 @@ document.addEventListener("DOMContentLoaded", function () {
     var livesText = document.getElementById("lives");
     var lettersDisplay = document.getElementById("letters");
     var monsterImage = document.getElementById("monster");
+    var letterInput = document.getElementById("letter_input");
+
+    // Establecer el focus en el campo de entrada de letras al cargar la página
+    letterInput.focus();
 
     var option = confirm("El Penjat Online\n\n- Unir-se a una sala → Acceptar.\n\n- Crear una sala → Cancelar.");
     if (option) {
@@ -68,12 +72,18 @@ document.addEventListener("DOMContentLoaded", function () {
             livesText.innerHTML = gameStatus["lives" + playerRole] + " LIVES LEFT";
             currentPlayer = response.player; // Actualizar el jugador actual
             updateMonsterImage(gameStatus["lives" + playerRole]);
+            if (currentPlayer === playerRole) {
+                letterInput.disabled = false;
+                letterInput.focus();
+            } else {
+                letterInput.disabled = true;
+            }
         } else {
             alert("Error: " + (response.response || "Respuesta desconocida del servidor"));
         }
     }
 
-    document.body.addEventListener("keydown", function (event) {
+    letterInput.addEventListener("keyup", function (event) {
         if (currentPlayer !== playerRole) {
             alert("Espera tu turno.");
             return;
@@ -108,6 +118,7 @@ document.addEventListener("DOMContentLoaded", function () {
             alert("Game Over");
             window.location.reload(); // Recarga la página para reiniciar el juego
         }
+        letterInput.disabled = true; // Deshabilitar el campo de entrada si el jugador pierde una vida
     }
 
     function checkGameState() {
