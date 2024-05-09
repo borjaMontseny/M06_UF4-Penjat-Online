@@ -1,143 +1,146 @@
 document.addEventListener("DOMContentLoaded", function () {
-    // Variables globals
-    var gameStatus = {}; // Definir la variable gameStatus aquí
-
-    // PENJAT ONLINE
+    var gameStatus = {};
     var roomCode;
-    var roomPassword = "XXX"; // No demanarem contrasenya, serà aquesta per defecte
+    var roomPassword = "XXX";  // Contraseña por defecto
+    var playerRole = "P1";  // Por defecto, el primer jugador es P1
+    var currentPlayer = "P1"; // Jugador que tiene el turno
+    var pollingInterval;
 
-    // Text de l'HTML que modificarem per saber si som Player1 o Player2
+    // Elementos de la UI que modificaremos
     var clueText = document.getElementById("clue").getElementsByTagName("span")[0];
+    var livesText = document.getElementById("lives");
+    var lettersDisplay = document.getElementById("letters");
+    var monsterImage = document.getElementById("monster");
+    var letterInput = document.getElementById("letter_input");
 
-    var opcio = confirm("El Penjat Online\n\n- Unir-se a una sala → Acceptar.\n\n- Crear una sala       → Cancelar.");
+    // Establecer el focus en el campo de entrada de letras al cargar la página
+    letterInput.focus();
 
-    if (opcio) {
-        clueText.innerHTML = "P2";
+    var option = confirm("El Penjat Online\n\n- Unir-se a una sala → Acceptar.\n\n- Crear una sala → Cancelar.");
+    if (option) {
+        playerRole = "P2";  // El segundo jugador que se une es P2
         roomCode = prompt("Sala on et vols unir");
-
-        // Realitzar la petició AJAX per unir-se a la sala
-        var xhrJoinGame = new XMLHttpRequest();
-        xhrJoinGame.open("POST", "https://penjat.codifi.cat", true);
-        xhrJoinGame.setRequestHeader("Content-Type", "application/json");
-        xhrJoinGame.onreadystatechange = function () {
-            if (xhrJoinGame.readyState === 4 && xhrJoinGame.status === 200) {
-                var jsonResponse = JSON.parse(xhrJoinGame.responseText);
-                console.log("T'has unit a la sala " + roomCode + " correctament.");
-                console.log(jsonResponse);
-                updateGameState(jsonResponse);
-            }
-        };
-        xhrJoinGame.send(JSON.stringify({ "action": "infoGame", "gameName": roomCode }));
-
+        joinGame(roomCode);  // Función para unirse a un juego existente
     } else {
-        clueText.innerHTML = "P1";
+        playerRole = "P1";  // El primer jugador que crea la sala es P1
         roomCode = prompt("Nom de la sala que vols crear");
-
-        // Realitzar la petició AJAX per crear la sala
-        var xhrCreateGame = new XMLHttpRequest();
-        xhrCreateGame.open("POST", "https://penjat.codifi.cat", true);
-        xhrCreateGame.setRequestHeader("Content-Type", "application/json");
-        xhrCreateGame.onreadystatechange = function () {
-            if (xhrCreateGame.readyState === 4 && xhrCreateGame.status === 200) {
-                console.log("La sala " + roomCode + " s'ha creat correctament");
-                console.log(xhrCreateGame.responseText);
-            }
-        };
-        xhrCreateGame.send(JSON.stringify({ "action": "createGame", "gameName": roomCode, "gamePassword": roomPassword }));
+        createGame(roomCode);  // Función para crear un nuevo juego
     }
 
-    // Assignació de variables en carregar el DOM completament
-    var newGameButton = document.getElementById("new_game");
-    var letters = document.getElementById("letters");
-    letters.innerHTML = " ";
-    var livesText = document.getElementById("lives"); // Variable afegida per actualitzar les vides
-    var lives = 5; // Variable que emmagatzema la quantitat de vides
+    clueText.innerHTML = playerRole;  // Actualiza el rol del jugador en la interfaz
 
-    // Assignació d'esdeveniments
-    document.body.addEventListener("keydown", pressKey);
-    newGameButton.addEventListener("click", restartGame);
-
-    function pressKey(event) {
-        var pressedKey = event.key.toUpperCase();
-
-        if (!/^[A-Z]$/i.test(pressedKey)) {
-            return;
-        }
-
-        // Construir l'objecte JSON a enviar
-        var playData = {
-            "action": "playGame",
-            "gameName": roomCode,
-            "word": pressedKey,
-            "player": (clueText.innerHTML === "P1") ? "P1" : "P2"
-        };
-
-        var xhrPlayGame = new XMLHttpRequest();
-        xhrPlayGame.open("POST", "https://penjat.codifi.cat", true);
-        xhrPlayGame.setRequestHeader("Content-Type", "application/json");
-        xhrPlayGame.onreadystatechange = function () {
-            if (xhrPlayGame.readyState === 4) {
-                if (xhrPlayGame.status === 200) {
-                    var jsonResponse = JSON.parse(xhrPlayGame.responseText);
-                    if (jsonResponse.status === "OK") {
-                        // La paraula és correcta
-                        console.log("Paraula correcta. El jugador " + playData.player + " ha salvat la seva vida fins ara.");
-                        if (playData.player === "P1" || playData.player === "P2") {
-                            actualizarEstadoJuego(); // Realitzar sol·licitud d'actualització de l'estat del joc
-                        }
-                    } else {
-                        // La paraula és incorrecta
-                        console.log("Paraula incorrecta. El jugador " + playData.player + " perd una vida.");
-                        // Actualitzar vides i mostrar a la interfície gràfica
-                        lives--;
-                        updateMonsterImage();
-                        livesText.innerHTML = (lives + "<br> LIVES <br>LEFT");
-                        if (lives === 0) {
-                            alert("Has perdut la partida!");
-                            document.body.removeEventListener("keydown", pressKey);
-                        }
-                    }
+    function joinGame(room) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "https://penjat.codifi.cat", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                var response = JSON.parse(xhr.responseText);
+                if (response.status === "OK") {
+                    updateGameState(response);
+                    startPolling();
                 } else {
-                    console.error("Error en la sol·licitud AJAX: " + xhrPlayGame.status);
+                    alert("Error: " + response.response);
                 }
             }
         };
-        xhrPlayGame.send(JSON.stringify(playData));
+        xhr.send(JSON.stringify({ "action": "infoGame", "gameName": room }));
     }
 
-    // Funció per reiniciar el joc
-    function restartGame() {
-        window.location.reload();
-    }
-
-    // Funció per actualitzar l'estat del joc
-    function updateGameState(response) {
-        gameStatus = response.gameInfo;
-        letters.innerHTML = gameStatus.wordCompleted;
-    }
-
-    // Funció per actualitzar l'estat del joc després de realitzar una jugada
-    function actualizarEstadoJuego() {
-        var xhrUpdateGame = new XMLHttpRequest();
-        xhrUpdateGame.open("POST", "https://penjat.codifi.cat", true);
-        xhrUpdateGame.setRequestHeader("Content-Type", "application/json");
-        xhrUpdateGame.onreadystatechange = function () {
-            if (xhrUpdateGame.readyState === 4 && xhrUpdateGame.status === 200) {
-                var jsonResponse = JSON.parse(xhrUpdateGame.responseText);
-                updateGameState(jsonResponse);
+    function createGame(room) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "https://penjat.codifi.cat", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                var response = JSON.parse(xhr.responseText);
+                if (response.status === "OK") {
+                    updateGameState(response);
+                    startPolling();
+                } else {
+                    alert("Error al crear la sala: " + response.response);
+                }
             }
         };
-        xhrUpdateGame.send(JSON.stringify({ "action": "infoGame", "gameName": roomCode }));
+        xhr.send(JSON.stringify({ "action": "createGame", "gameName": room, "gamePassword": roomPassword }));
     }
 
-    function updateMonsterImage() {
+    function updateGameState(response) {
+        if (response.status === "OK" && response.gameInfo && response.gameInfo.wordCompleted) {
+            gameStatus = response.gameInfo;
+            lettersDisplay.innerHTML = gameStatus.wordCompleted;
+            livesText.innerHTML = gameStatus["lives" + playerRole] + " LIVES LEFT";
+            currentPlayer = response.player; // Actualizar el jugador actual
+            updateMonsterImage(gameStatus["lives" + playerRole]);
+            if (currentPlayer === playerRole) {
+                letterInput.disabled = false;
+                letterInput.focus();
+            } else {
+                letterInput.disabled = true;
+            }
+        } else {
+            alert("Error: " + (response.response || "Respuesta desconocida del servidor"));
+        }
+    }
+
+    letterInput.addEventListener("keyup", function (event) {
+        if (currentPlayer !== playerRole) {
+            alert("Espera tu turno.");
+            return;
+        }
+
+        var key = event.key.toUpperCase();
+        if (!/^[A-Z]$/i.test(key)) return;
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "https://penjat.codifi.cat", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                var response = JSON.parse(xhr.responseText);
+                if (response.status === "OK") {
+                    updateGameState(response);
+                } else {
+                    updateLives(response);  // Actualiza las vidas y la UI si el movimiento falla
+                    checkGameState();  // Verifica el estado del juego
+                }
+            }
+        };
+        xhr.send(JSON.stringify({ "action": "playGame", "gameName": roomCode, "word": key, "player": playerRole }));
+    });
+
+    function updateLives(response) {
+        var livesKey = "lives" + playerRole;
+        gameStatus[livesKey] -= 1;
+        livesText.innerHTML = gameStatus[livesKey] + " LIVES LEFT";
+        updateMonsterImage(gameStatus[livesKey]);
+        if (gameStatus[livesKey] === 0) {
+            alert("Game Over");
+            window.location.reload(); // Recarga la página para reiniciar el juego
+        }
+        letterInput.disabled = true; // Deshabilitar el campo de entrada si el jugador pierde una vida
+    }
+
+    function checkGameState() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "https://penjat.codifi.cat", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                var response = JSON.parse(xhr.responseText);
+                updateGameState(response);
+            }
+        };
+        xhr.send(JSON.stringify({ "action": "infoGame", "gameName": roomCode }));
+    }
+
+    function startPolling() {
+        pollingInterval = setInterval(checkGameState, 2000); // Verificar el estado del juego cada 2 segundos
+    }
+
+    function updateMonsterImage(lives) {
         var imgMonstre = document.getElementById("monster");
-
-        // Construir la ruta de la imagen en función del número de vidas
         var imagePath = "img/monster" + lives + ".png";
-
-        // Actualizar la fuente de la imagen
         imgMonstre.src = imagePath;
     }
-
 });
